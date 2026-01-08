@@ -28,8 +28,8 @@ public:
 
 private:
     // Grid settings
-    const int m_rows = 15;
-    const int m_cols = 20;
+    int m_rows = 15;
+    int m_cols = 20;
 
     float m_cell = 40.0f;
     float m_originX = 0.0f;
@@ -182,4 +182,5 @@ private:
 
     bool loadLevelFromFile(const std::string& relPath);
     void loadNextLevel(int difficulty);  // easy/medium/hard
+    void rebuildGrid(int newRows, int newCols);
 };

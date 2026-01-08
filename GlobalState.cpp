@@ -1257,22 +1257,48 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
     resetScore();
     resetAttemptTimer();
 
+    // --- Read header: "ROWS COLS" ---
+    int fileRows = 0, fileCols = 0;
+    {
+        std::string header;
+        if (!std::getline(f, header))
+        {
+            m_status = "Level file empty: " + relPath;
+            return false;
+        }
+        if (!header.empty() && header.back() == '\r') header.pop_back();
+
+        std::istringstream iss(header);
+        if (!(iss >> fileRows >> fileCols) || fileRows <= 0 || fileCols <= 0)
+        {
+            m_status = "Invalid level header (expected: ROWS COLS): " + relPath;
+            return false;
+        }
+    }
+
+    // --- Rebuild grid if size differs ---
+    if (fileRows != m_rows || fileCols != m_cols)
+    {
+        rebuildGrid(fileRows, fileCols);
+    }
+
+    // --- Read exactly m_rows map lines ---
     std::vector<std::string> lines;
     lines.reserve(m_rows);
 
     std::string line;
-    while (std::getline(f, line))
+    while ((int)lines.size() < m_rows && std::getline(f, line))
     {
-        // keep it strict: do not allow extra spaces
-        if (!line.empty() && line.back() == '\r') line.pop_back(); // windows line endings
-        if (!line.empty())
-            lines.push_back(line);
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue; // ignore blank lines
+        lines.push_back(line);
     }
 
     if ((int)lines.size() != m_rows)
     {
-        m_status = "Level file has wrong number of rows. Expected " +
-            std::to_string(m_rows) + ", got " + std::to_string(lines.size());
+        m_status = "Wrong number of map rows in " + relPath +
+            " (expected " + std::to_string(m_rows) +
+            ", got " + std::to_string(lines.size()) + ")";
         return false;
     }
 
@@ -1280,7 +1306,9 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
     {
         if ((int)lines[r].size() != m_cols)
         {
-            m_status = "Level file row " + std::to_string(r) + " has wrong length.";
+            m_status = "Row " + std::to_string(r) + " wrong length in " + relPath +
+                " (expected " + std::to_string(m_cols) +
+                ", got " + std::to_string(lines[r].size()) + ")";
             return false;
         }
     }
@@ -1288,7 +1316,7 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
     Node* newStart = nullptr;
     Node* newGoal = nullptr;
 
-    // Apply grid
+    // --- Apply grid ---
     for (int r = 0; r < m_rows; r++)
     {
         for (int c = 0; c < m_cols; c++)
@@ -1311,11 +1339,13 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
             else if (ch == 'S')
             {
                 n->walkable = true;
+                n->state = NodeVizState::Empty;
                 newStart = n;
             }
             else if (ch == 'G')
             {
                 n->walkable = true;
+                n->state = NodeVizState::Empty;
                 newGoal = n;
             }
             else
@@ -1333,10 +1363,7 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
         return false;
     }
 
-    // Clear old start/goal states
-    if (m_start && m_start != newStart && m_start->walkable) m_start->state = NodeVizState::Empty;
-    if (m_goal && m_goal != newGoal && m_goal->walkable)  m_goal->state = NodeVizState::Empty;
-
+    // Set start/goal
     m_start = newStart;
     m_goal = newGoal;
 
@@ -1345,8 +1372,13 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
 
     m_currentLevelPath = relPath;
 
-    // Optional: compute shortest corridor immediately for HUD/stats
+    // --- Solvability check (must have a solution) ---
     computeShortestCorridor();
+    if (m_shortestSteps < 0)
+    {
+        m_status = "UNSOLVABLE level (no path S->G): " + relPath;
+        return false;
+    }
 
     m_status = "Loaded: " + relPath;
     return true;
@@ -1383,6 +1415,53 @@ void GlobalState::loadNextLevel(int difficulty)
     }
 
     m_status = "All level files failed to load for this difficulty.";
+}
+void GlobalState::rebuildGrid(int newRows, int newCols)
+{
+    // Basic sanity
+    if (newRows < 3) newRows = 3;
+    if (newCols < 3) newCols = 3;
+
+    // Stop any running visuals/state that might reference nodes
+    cancelAStar();
+    clearPlayerPath();
+    resetScore();
+    resetAttemptTimer();
+
+    // 1) Remove current Node* pointers from m_drawables (keep other drawables!)
+    std::unordered_set<VisualAsset*> oldNodeDrawables;
+    oldNodeDrawables.reserve(m_nodes.size() * 2 + 1);
+    for (Node* n : m_nodes)
+        oldNodeDrawables.insert(static_cast<VisualAsset*>(n));
+
+    std::vector<VisualAsset*> kept;
+    kept.reserve(m_drawables.size());
+    for (VisualAsset* a : m_drawables)
+    {
+        if (oldNodeDrawables.find(a) == oldNodeDrawables.end())
+            kept.push_back(a);
+    }
+    m_drawables.swap(kept);
+
+    // 2) Delete nodes and clear containers
+    for (Node* n : m_nodes)
+        delete n;
+    m_nodes.clear();
+
+    // old pointers invalid now
+    m_start = nullptr;
+    m_goal = nullptr;
+
+    // 3) Update size and rebuild
+    m_rows = newRows;
+    m_cols = newCols;
+
+    buildGridGraph(); // <-- your existing function
+
+    // Optional: if you compute grid placement/cell size somewhere, call it here
+    // updateLayoutOrCellSize();
+
+    m_status = "Grid rebuilt: " + std::to_string(m_rows) + "x" + std::to_string(m_cols);
 }
 
 
