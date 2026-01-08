@@ -185,6 +185,8 @@ void LegendPanel::draw() const
     legendRow(left + 10.0f, y, 16.0f, 0.35f, 0.70f, 0.95f, "Open set");    y += 22.0f;
     legendRow(left + 10.0f, y, 16.0f, 0.55f, 0.55f, 0.70f, "Closed set");  y += 22.0f;
     legendRow(left + 10.0f, y, 16.0f, 1.00f, 0.85f, 0.15f, "Final path");  y += 26.0f;
+    legendRow(left + 10.0f, y, 16.0f, 0.85f, 0.25f, 0.85f, "Player path");  y += 26.0f;
+
 
     graphics::Brush small;
     small.fill_color[0] = 0.85f; small.fill_color[1] = 0.85f; small.fill_color[2] = 0.85f;
@@ -194,4 +196,6 @@ void LegendPanel::draw() const
     graphics::drawText(left, y, 14.0f, "RMB: set Start", small); y += 16.0f;
     graphics::drawText(left, y, 14.0f, "Shift+RMB: set Goal", small); y += 16.0f;
     graphics::drawText(left, y, 14.0f, "SPACE: run/pause  |  R: reset search", small); y += 16.0f;
+    graphics::drawText(left, y, 14.0f, "D: toggle Draw Mode", small); y += 16.0f;
+    graphics::drawText(left, y, 14.0f, "Draw Mode: LMB drag to draw path", small); y += 16.0f;
 }

@@ -45,8 +45,8 @@ Recommended:
 ## TODO (planned work)
 
 ### Gameplay (new “player vs algorithm” mode)
-- [ ] Add **Draw Mode**: player draws a path from Start to Goal by dragging/clicking cells.
-- [ ] Validate path: must be continuous and cannot go through walls.
+- [x] Add **Draw Mode**: player draws a path from Start to Goal by dragging/clicking cells.
+- [x] Validate path: must be continuous and cannot go through walls.
 - [ ] Compute **A* optimal path** and compare to player path:
   - [ ] Score based on overlap with A* path (Jaccard/overlap ratio)
   - [ ] Penalty for extra steps (path length difference)

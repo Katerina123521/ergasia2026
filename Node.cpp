@@ -67,6 +67,11 @@ static void setColorForState(graphics::Brush& br, NodeVizState st)
         br.fill_color[0] = 0.55f; br.fill_color[1] = 0.55f; br.fill_color[2] = 0.70f; break;
     case NodeVizState::Path:
         br.fill_color[0] = 1.00f; br.fill_color[1] = 0.85f; br.fill_color[2] = 0.15f; break;
+    case NodeVizState::PlayerPath:
+        br.fill_color[0] = 0.85f; br.fill_color[1] = 0.25f; br.fill_color[2] = 0.85f; break;
+    case NodeVizState::PlayerInvalid:
+        br.fill_color[0] = 1.00f; br.fill_color[1] = 0.55f; br.fill_color[2] = 0.15f; break;
+
     }
 }
 

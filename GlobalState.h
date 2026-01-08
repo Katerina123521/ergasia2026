@@ -4,6 +4,8 @@
 #include "VisualAsset.h"
 #include "Node.h"
 #include "UIWidget.h"
+#include <unordered_set>
+
 
 
 class GlobalState final
@@ -77,6 +79,39 @@ private:
     bool m_musicOn = true;
     float m_musicVolume = 0.20f;
     std::string m_musicFile = "assets/bgm.ogg";
+
+    bool m_drawMode = false;          // Draw Mode toggle
+    bool m_isDrawing = false;         // currently dragging
+    Node* m_lastDrawn = nullptr;      // last node added while dragging
+    std::vector<Node*> m_playerPath;  // player path nodes (includes start, ends at goal if reached)
+
+    // key edge detect for D (optional)
+    bool m_prevD = false;
+
+    void clearPlayerPath();
+    bool isAdjacent(const Node* a, const Node* b) const;
+    bool appendPlayerPath(Node* n);
+    void beginPlayerDrawing();
+    void endPlayerDrawing();
+
+    enum class PlayerPathValidation
+    {
+        Empty,
+        ValidToGoal,
+        ValidButNotAtGoal,
+        InvalidStart,
+        InvalidWall,
+        InvalidNonAdjacent,
+        InvalidDuplicate
+    };
+
+    PlayerPathValidation m_pathValidation = PlayerPathValidation::Empty;
+    int m_invalidIndex = -1;      // index in m_playerPath where it fails (if any)
+    bool m_pathComplete = false;  // ends at goal
+
+    PlayerPathValidation validatePlayerPath();
+    void markInvalidNode(int index);
+    void clearInvalidMarks();
 
 
 };

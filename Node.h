@@ -10,7 +10,9 @@ enum class NodeVizState
     Goal,
     Open,
     Closed,
-    Path
+    Path,
+    PlayerPath,
+    PlayerInvalid
 };
 
 class Node final : public VisualAsset

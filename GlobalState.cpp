@@ -459,12 +459,15 @@ void GlobalState::update(float dt)
     for (VisualAsset* a : m_drawables)
         a->update(dt);
 
-    graphics::MouseState ms;
+    graphics::MouseState ms{};
     graphics::getMouseState(ms);
 
     // --- key edge detection ---
     bool spaceDown = graphics::getKeyState(graphics::SCANCODE_SPACE);
     bool rDown = graphics::getKeyState(graphics::SCANCODE_R);
+    bool dDown = graphics::getKeyState(graphics::SCANCODE_D);
+    bool dPressed = dDown && !m_prevD;
+    m_prevD = dDown;
 
     bool spacePressed = spaceDown && !m_prevSpace;
     bool rPressed = rDown && !m_prevR;
@@ -490,22 +493,121 @@ void GlobalState::update(float dt)
         graphics::getKeyState(graphics::SCANCODE_RSHIFT);
     if (!uiCaptured)
     {
-        if (ms.button_left_pressed)
-        {
-            Node* n = nodeFromMouse(mx, my);
-            if (n && n != m_start && n != m_goal)
+        // If A* is running and player starts editing/drawing, stop A*
+        auto stopAStarIfActive = [this]()
             {
-                // toggle wall
-                n->walkable = !n->walkable;
-                n->state = n->walkable ? NodeVizState::Empty : NodeVizState::Wall;
+                if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused)
+                    cancelAStar();
+            };
+
+        // --- LMB behavior ---
+        if (!m_drawMode)
+        {
+            // NORMAL MODE: LMB toggles walls
+            if (ms.button_left_pressed)
+            {
+                stopAStarIfActive();
+
+                Node* n = nodeFromMouse(mx, my);
+                if (n && n != m_start && n != m_goal)
+                {
+                    n->walkable = !n->walkable;
+                    n->state = n->walkable ? NodeVizState::Empty : NodeVizState::Wall;
+                }
             }
         }
-
-        if (ms.button_right_pressed)
+        else
         {
+            // DRAW MODE: LMB draws a player path
+            if (ms.button_left_pressed)
+            {
+                stopAStarIfActive();
+                beginPlayerDrawing();
+
+                // If user clicked somewhere other than start, we still begin at start.
+                // Next frames while dragging will add cells.
+            }
+
+            if (ms.button_left_down && m_isDrawing)
+            {
+                Node* n = nodeFromMouse(mx, my);
+
+                // Only attempt when the hovered node changes
+                if (n && n != m_lastDrawn)
+                {
+                    // allow the first step from start
+                    if (m_playerPath.empty())
+                    {
+                        beginPlayerDrawing();
+                    }
+
+                    // try to append
+                    if (appendPlayerPath(n))
+                    {
+                        m_lastDrawn = n;
+                    }
+                    else
+                    {
+                        // keep last drawn to prevent spamming the same invalid cell
+                        m_lastDrawn = n;
+                    }
+                }
+            }
+
+            if (ms.button_left_released)
+            {
+                endPlayerDrawing();
+
+                m_pathValidation = validatePlayerPath();
+
+                switch (m_pathValidation)
+                {
+                case PlayerPathValidation::Empty:
+                    m_status = "Draw Mode: draw a path from Start to Goal.";
+                    break;
+
+                case PlayerPathValidation::ValidToGoal:
+                    m_status = "Valid path to GOAL! (Scoring comes next.)";
+                    break;
+
+                case PlayerPathValidation::ValidButNotAtGoal:
+                    m_status = "Path is valid so far, but it doesn't reach the GOAL.";
+                    break;
+
+                case PlayerPathValidation::InvalidStart:
+                    m_status = "Invalid path: it must start at the green Start cell.";
+                    break;
+
+                case PlayerPathValidation::InvalidWall:
+                    m_status = "Invalid path: it goes through a wall.";
+                    break;
+
+                case PlayerPathValidation::InvalidNonAdjacent:
+                    m_status = "Invalid path: it must move only to adjacent cells.";
+                    break;
+
+                case PlayerPathValidation::InvalidDuplicate:
+                    m_status = "Invalid path: you revisited a cell.";
+                    break;
+                }
+            }
+
+        }
+
+        // --- RMB behavior stays the same (start/goal) ---
+        if (ms.button_right_pressed && !ms.button_left_down && !m_isDrawing)
+        {
+            stopAStarIfActive();
+
+            bool shift = graphics::getKeyState(graphics::SCANCODE_LSHIFT) ||
+                graphics::getKeyState(graphics::SCANCODE_RSHIFT);
+
             Node* n = nodeFromMouse(mx, my);
             if (n && n->walkable)
             {
+                // if changing endpoints, player path no longer valid
+                clearPlayerPath();
+
                 if (shift)
                 {
                     if (m_goal) m_goal->state = NodeVizState::Empty;
@@ -544,7 +646,26 @@ void GlobalState::update(float dt)
     {
         cancelAStar(); 
     }
+    if (dPressed)
+    {
+        m_drawMode = !m_drawMode;
 
+        // If switching on, clear any old player path
+        if (m_drawMode)
+        {
+            // safest: stop A* visuals so colors don't mix
+            if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused)
+                cancelAStar();
+
+            clearPlayerPath();
+            m_status = "Draw Mode: ON (drag from Start to Goal).";
+        }
+        else
+        {
+            endPlayerDrawing();
+            m_status = "Draw Mode: OFF (LMB toggles walls).";
+        }
+    }
     if (graphics::getKeyState(graphics::SCANCODE_C))
     {
         clearWallsAndPathKeepEndpoints();
@@ -675,4 +796,170 @@ void GlobalState::draw() const
     }
 
 
+}
+
+void GlobalState::clearPlayerPath()
+{
+    for (Node* n : m_playerPath)
+    {
+        if (!n) continue;
+        if (n == m_start || n == m_goal) continue;
+        if (!n->walkable) continue; // wall stays wall
+        // Only clear if it is player path
+        if (n->state == NodeVizState::PlayerPath)
+            n->state = NodeVizState::Empty;
+    }
+    m_playerPath.clear();
+    m_lastDrawn = nullptr;
+}
+
+bool GlobalState::isAdjacent(const Node* a, const Node* b) const
+{
+    if (!a || !b) return false;
+    const int dr = std::abs(a->row - b->row);
+    const int dc = std::abs(a->col - b->col);
+    return (dr + dc) == 1; // 4-neighborhood
+}
+
+void GlobalState::beginPlayerDrawing()
+{
+    clearPlayerPath();
+    clearInvalidMarks();
+
+    if (m_start)
+    {
+        m_playerPath.push_back(m_start);
+        m_lastDrawn = m_start;
+    }
+    m_isDrawing = true;
+    m_status = "Draw Mode: drag from Start to Goal (adjacent cells only).";
+}
+
+void GlobalState::endPlayerDrawing()
+{
+    m_isDrawing = false;
+    m_lastDrawn = nullptr;
+}
+
+bool GlobalState::appendPlayerPath(Node* n)
+{
+    if (!n) return false;
+    if (!n->walkable) return false;          // cannot draw through walls
+    if (n == m_start) return false;          // already included as first
+    if (m_playerPath.empty()) return false;
+
+    Node* last = m_playerPath.back();
+
+    // must be adjacent to the previous node
+    if (!isAdjacent(last, n)) return false;
+
+    // avoid revisiting nodes (simple rule)
+    if (std::find(m_playerPath.begin(), m_playerPath.end(), n) != m_playerPath.end())
+        return false;
+
+    m_playerPath.push_back(n);
+
+    // paint it (don’t overwrite goal)
+    if (n != m_goal && n != m_start)
+        n->state = NodeVizState::PlayerPath;
+
+    if (n == m_goal)
+        m_status = "Player path reached GOAL! (Scoring comes next.)";
+
+    return true;
+}
+
+void GlobalState::clearInvalidMarks()
+{
+    // Remove any PlayerInvalid marks, keep walls/start/goal
+    for (Node* n : m_nodes)
+    {
+        if (!n) continue;
+        if (n == m_start) { n->state = NodeVizState::Start; continue; }
+        if (n == m_goal) { n->state = NodeVizState::Goal;  continue; }
+        if (!n->walkable) { n->state = NodeVizState::Wall;  continue; }
+
+        if (n->state == NodeVizState::PlayerInvalid)
+            n->state = NodeVizState::Empty;
+    }
+}
+
+void GlobalState::markInvalidNode(int index)
+{
+    if (index < 0 || index >= (int)m_playerPath.size()) return;
+    Node* n = m_playerPath[index];
+    if (!n) return;
+    if (n == m_start || n == m_goal) return;
+    if (!n->walkable) return;
+
+    n->state = NodeVizState::PlayerInvalid;
+}
+
+GlobalState::PlayerPathValidation GlobalState::validatePlayerPath()
+{
+    clearInvalidMarks();
+    m_invalidIndex = -1;
+    m_pathComplete = false;
+
+    if (m_playerPath.empty())
+        return PlayerPathValidation::Empty;
+
+    // Must start at Start
+    if (m_playerPath.front() != m_start)
+    {
+        m_invalidIndex = 0;
+        markInvalidNode(0);
+        return PlayerPathValidation::InvalidStart;
+    }
+
+    std::unordered_set<Node*> seen;
+    seen.reserve(m_playerPath.size() * 2);
+
+    for (int i = 0; i < (int)m_playerPath.size(); i++)
+    {
+        Node* cur = m_playerPath[i];
+        if (!cur)
+        {
+            m_invalidIndex = i;
+            return PlayerPathValidation::InvalidWall; // treat null as invalid
+        }
+
+        // No walls allowed
+        if (!cur->walkable)
+        {
+            m_invalidIndex = i;
+            // wall cells are black anyway; mark previous if you want
+            return PlayerPathValidation::InvalidWall;
+        }
+
+        // No duplicates (simple rule)
+        if (seen.find(cur) != seen.end())
+        {
+            m_invalidIndex = i;
+            markInvalidNode(i);
+            return PlayerPathValidation::InvalidDuplicate;
+        }
+        seen.insert(cur);
+
+        // Must be continuous (adjacent moves)
+        if (i > 0)
+        {
+            Node* prev = m_playerPath[i - 1];
+            if (!isAdjacent(prev, cur))
+            {
+                m_invalidIndex = i;
+                markInvalidNode(i);
+                return PlayerPathValidation::InvalidNonAdjacent;
+            }
+        }
+    }
+
+    // End condition
+    if (m_playerPath.back() == m_goal)
+    {
+        m_pathComplete = true;
+        return PlayerPathValidation::ValidToGoal;
+    }
+
+    return PlayerPathValidation::ValidButNotAtGoal;
 }
