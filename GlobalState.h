@@ -168,4 +168,18 @@ private:
     std::string formatTime(float ms) const;
 
     void applyTimerBonus(); // uses m_score, m_shortestSteps, m_lastAttemptMs
+
+    std::vector<std::string> m_levelsEasy;
+    std::vector<std::string> m_levelsMedium;
+    std::vector<std::string> m_levelsHard;
+
+    int m_levelIdxEasy = 0;
+    int m_levelIdxMedium = 0;
+    int m_levelIdxHard = 0;
+
+    int m_currentDifficulty = 0;     // 0 easy, 1 medium, 2 hard
+    std::string m_currentLevelPath;  // for HUD + best-attempt saving later
+
+    bool loadLevelFromFile(const std::string& relPath);
+    void loadNextLevel(int difficulty);  // easy/medium/hard
 };

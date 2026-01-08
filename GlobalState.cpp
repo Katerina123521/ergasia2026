@@ -1,7 +1,8 @@
 #include "GlobalState.h"
 #include <algorithm>
 #include <cmath>
-
+#include <fstream>
+#include <iostream> 
 #include "graphics.h"
 #include "scancodes.h"
 
@@ -42,6 +43,9 @@ T clampValue(T v, T lo, T hi)
 
 void GlobalState::init()
 {
+    m_levelsEasy = { "assets/levels/easy_01.txt", "assets/levels/easy_02.txt" };
+    m_levelsMedium = { "assets/levels/medium_01.txt", "assets/levels/medium_02.txt" };
+    m_levelsHard = { "assets/levels/hard_01.txt", "assets/levels/hard_02.txt" };
 
     const float availW = WIN_W - UI_LEFT_W - UI_RIGHT_W - 2.0f * UI_MARGIN;
     const float availH = WIN_H - UI_TOP_H - 2.0f * UI_MARGIN;
@@ -183,11 +187,9 @@ void GlobalState::init()
         {
             computeScore();
         });
-
-    addBtn("Easy", [this]() { generateMazeByDifficulty(0); });
-    addBtn("Medium", [this]() { generateMazeByDifficulty(1); });
-    addBtn("Difficult", [this]() { generateMazeByDifficulty(2); });
-
+    addBtn("Easy", [this]() { loadNextLevel(0); });
+    addBtn("Medium", [this]() { loadNextLevel(1); });
+    addBtn("Difficult", [this]() { loadNextLevel(2); });
 
     ToggleButton* hintBtn = new ToggleButton(bx, by, bw, bh, "Show Shortest Hint", &m_showShortestHint);
     m_ui.push_back(hintBtn);
@@ -1238,6 +1240,149 @@ void GlobalState::applyTimerBonus()
     int pts = m_score + m_timeBonus;
     if (!m_allowScoreOver100) pts = std::min(pts, 100);
     m_finalPoints = std::max(0, pts);
+}
+
+bool GlobalState::loadLevelFromFile(const std::string& relPath)
+{
+    std::ifstream f(relPath);
+    if (!f.is_open())
+    {
+        m_status = "Failed to open level file: " + relPath;
+        return false;
+    }
+
+    // Reset gameplay state
+    cancelAStar();
+    clearPlayerPath();
+    resetScore();
+    resetAttemptTimer();
+
+    std::vector<std::string> lines;
+    lines.reserve(m_rows);
+
+    std::string line;
+    while (std::getline(f, line))
+    {
+        // keep it strict: do not allow extra spaces
+        if (!line.empty() && line.back() == '\r') line.pop_back(); // windows line endings
+        if (!line.empty())
+            lines.push_back(line);
+    }
+
+    if ((int)lines.size() != m_rows)
+    {
+        m_status = "Level file has wrong number of rows. Expected " +
+            std::to_string(m_rows) + ", got " + std::to_string(lines.size());
+        return false;
+    }
+
+    for (int r = 0; r < m_rows; r++)
+    {
+        if ((int)lines[r].size() != m_cols)
+        {
+            m_status = "Level file row " + std::to_string(r) + " has wrong length.";
+            return false;
+        }
+    }
+
+    Node* newStart = nullptr;
+    Node* newGoal = nullptr;
+
+    // Apply grid
+    for (int r = 0; r < m_rows; r++)
+    {
+        for (int c = 0; c < m_cols; c++)
+        {
+            Node* n = nodeAt(r, c);
+            if (!n) continue;
+
+            char ch = lines[r][c];
+
+            if (ch == '#')
+            {
+                n->walkable = false;
+                n->state = NodeVizState::Wall;
+            }
+            else if (ch == '.' || ch == ' ')
+            {
+                n->walkable = true;
+                n->state = NodeVizState::Empty;
+            }
+            else if (ch == 'S')
+            {
+                n->walkable = true;
+                newStart = n;
+            }
+            else if (ch == 'G')
+            {
+                n->walkable = true;
+                newGoal = n;
+            }
+            else
+            {
+                // unknown char -> treat as empty
+                n->walkable = true;
+                n->state = NodeVizState::Empty;
+            }
+        }
+    }
+
+    if (!newStart || !newGoal)
+    {
+        m_status = "Level missing S or G: " + relPath;
+        return false;
+    }
+
+    // Clear old start/goal states
+    if (m_start && m_start != newStart && m_start->walkable) m_start->state = NodeVizState::Empty;
+    if (m_goal && m_goal != newGoal && m_goal->walkable)  m_goal->state = NodeVizState::Empty;
+
+    m_start = newStart;
+    m_goal = newGoal;
+
+    m_start->state = NodeVizState::Start;
+    m_goal->state = NodeVizState::Goal;
+
+    m_currentLevelPath = relPath;
+
+    // Optional: compute shortest corridor immediately for HUD/stats
+    computeShortestCorridor();
+
+    m_status = "Loaded: " + relPath;
+    return true;
+}
+
+void GlobalState::loadNextLevel(int difficulty)
+{
+    m_currentDifficulty = difficulty;
+
+    std::vector<std::string>* list = nullptr;
+    int* idx = nullptr;
+
+    if (difficulty == 0) { list = &m_levelsEasy;   idx = &m_levelIdxEasy; }
+    if (difficulty == 1) { list = &m_levelsMedium; idx = &m_levelIdxMedium; }
+    if (difficulty == 2) { list = &m_levelsHard;   idx = &m_levelIdxHard; }
+
+    if (!list || list->empty())
+    {
+        m_status = "No level files set for this difficulty.";
+        return;
+    }
+
+    // cycle through levels
+    *idx = (*idx) % (int)list->size();
+
+    // try to load; if fails, advance and try a few times
+    for (int tries = 0; tries < (int)list->size(); tries++)
+    {
+        const std::string& path = (*list)[*idx];
+        (*idx) = (*idx + 1) % (int)list->size();
+
+        if (loadLevelFromFile(path))
+            return;
+    }
+
+    m_status = "All level files failed to load for this difficulty.";
 }
 
 
