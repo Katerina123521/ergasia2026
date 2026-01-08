@@ -13,6 +13,7 @@ GlobalState::GlobalState()
 GlobalState::~GlobalState()
 {
     graphics::stopMusic(300);
+    resetScore();
 
     // delete UI widgets first (they are NOT in m_nodes)
     for (UIWidget* w : m_ui) delete w;
@@ -119,6 +120,7 @@ void GlobalState::init()
     addBtn("Reset Search", [this]()
         {
             cancelAStar(); // should keep walls + start/goal, clear Open/Closed/Path
+            resetScore();
         });
 
     // Clear all (walls + path), keep endpoints
@@ -126,6 +128,7 @@ void GlobalState::init()
         {
             cancelAStar();
             clearWallsAndPathKeepEndpoints();
+            resetScore();
         });
 
     // Random walls (nice for quick demos)
@@ -170,6 +173,20 @@ void GlobalState::init()
                 m_status = "Music: OFF";
             }
         });
+
+    addBtn("Submit / Score", [this]()
+        {
+            computeScore();
+        });
+
+    ToggleButton* hintBtn = new ToggleButton(bx, by, bw, bh, "Show Shortest Hint", &m_showShortestHint);
+    m_ui.push_back(hintBtn);
+    by += (bh + gap);
+
+    ToggleButton* autoBtn = new ToggleButton(bx, by, bw, bh, "Auto-score on Goal", &m_autoScoreOnGoal);
+    m_ui.push_back(autoBtn);
+    by += (bh + gap);
+
 
 
     // Help toggle
@@ -496,8 +513,11 @@ void GlobalState::update(float dt)
         // If A* is running and player starts editing/drawing, stop A*
         auto stopAStarIfActive = [this]()
             {
-                if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused)
+                if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused) {
                     cancelAStar();
+                    resetScore();
+                }
+
             };
 
         // --- LMB behavior ---
@@ -590,6 +610,11 @@ void GlobalState::update(float dt)
                     m_status = "Invalid path: you revisited a cell.";
                     break;
                 }
+
+                if (m_pathValidation == PlayerPathValidation::ValidToGoal && m_autoScoreOnGoal)
+                {
+                    computeScore();
+                }
             }
 
         }
@@ -645,6 +670,7 @@ void GlobalState::update(float dt)
     if (rPressed)
     {
         cancelAStar(); 
+        resetScore();
     }
     if (dPressed)
     {
@@ -747,6 +773,9 @@ void GlobalState::draw() const
     for (const VisualAsset* a : m_drawables)
         a->draw();
 
+    // overlay hint
+    drawShortestHintOverlay();
+
     for (UIWidget* w : m_ui)
         if (w) w->draw();
 
@@ -763,6 +792,15 @@ void GlobalState::draw() const
     // move text down so it doesn't touch the top edge
     graphics::drawText(18.0f, 48.0f, 26.0f, m_title, t);
     graphics::drawText(300.0f, 48.0f, 18.0f, m_status, t);
+    std::string stats =
+        "Score " + std::to_string(m_score) +
+        " | overlap " + std::to_string((int)std::round(m_overlap * 100.0f)) + "%" +
+        " | eff " + std::to_string((int)std::round(m_efficiency * 100.0f)) + "%" +
+        " | shortest " + std::to_string(m_shortestSteps) +
+        " | yours " + std::to_string(m_playerSteps);
+    std::string line = (m_score > 0) ? stats : m_status;
+    graphics::drawText(300.0f, 70.0f, 16.0f, line, t);
+
 
 
     if (m_showHelp)
@@ -823,6 +861,7 @@ bool GlobalState::isAdjacent(const Node* a, const Node* b) const
 
 void GlobalState::beginPlayerDrawing()
 {
+    resetScore();
     clearPlayerPath();
     clearInvalidMarks();
 
@@ -963,3 +1002,144 @@ GlobalState::PlayerPathValidation GlobalState::validatePlayerPath()
 
     return PlayerPathValidation::ValidButNotAtGoal;
 }
+
+static constexpr int INF = std::numeric_limits<int>::max() / 4;
+
+void GlobalState::resetScore()
+{
+    m_shortestSteps = -1;
+    m_playerSteps = -1;
+    m_onShortestCount = 0;
+    m_overlap = 0.0f;
+    m_efficiency = 0.0f;
+    m_score = 0;
+}
+
+void GlobalState::computeBfsDistances(Node* src, std::vector<int>& dist)
+{
+    dist.assign(m_rows * m_cols, INF);
+    if (!src) return;
+
+    std::queue<Node*> q;
+    dist[idx(src)] = 0;
+    q.push(src);
+
+    while (!q.empty())
+    {
+        Node* cur = q.front();
+        q.pop();
+
+        const int curd = dist[idx(cur)];
+
+        for (Node* nb : cur->neighbors)
+        {
+            if (!nb || !nb->walkable) continue;
+
+            const int nbIdx = idx(nb);
+            if (dist[nbIdx] > curd + 1)
+            {
+                dist[nbIdx] = curd + 1;
+                q.push(nb);
+            }
+        }
+    }
+}
+
+bool GlobalState::computeShortestCorridor()
+{
+    if (!m_start || !m_goal) return false;
+
+    computeBfsDistances(m_start, m_distStart);
+    computeBfsDistances(m_goal, m_distGoal);
+
+    const int goalI = idx(m_goal);
+    if (m_distStart[goalI] >= INF)
+    {
+        m_shortestSteps = -1;
+        m_onShortest.assign(m_rows * m_cols, 0);
+        return false;
+    }
+
+    m_shortestSteps = m_distStart[goalI];
+
+    m_onShortest.assign(m_rows * m_cols, 0);
+    for (int i = 0; i < (int)m_onShortest.size(); i++)
+    {
+        if (m_distStart[i] >= INF || m_distGoal[i] >= INF) continue;
+        if (m_distStart[i] + m_distGoal[i] == m_shortestSteps)
+            m_onShortest[i] = 1; // this cell lies on at least one optimal path
+    }
+
+    return true;
+}
+
+bool GlobalState::computeScore()
+{
+    resetScore();
+
+    // only score if path is complete + valid
+    if (m_pathValidation != PlayerPathValidation::ValidToGoal)
+    {
+        m_status = "Cannot score: draw a valid path that reaches the GOAL.";
+        return false;
+    }
+
+    if (!computeShortestCorridor())
+    {
+        m_status = "No valid route exists in this level (Start->Goal unreachable).";
+        return false;
+    }
+
+    // Steps are edges between nodes:
+    m_playerSteps = (int)m_playerPath.size() - 1;
+    if (m_playerSteps < 0) m_playerSteps = 0;
+
+    // Corridor overlap: fraction of player's visited cells that lie on ANY shortest path corridor
+    int hits = 0;
+    for (Node* n : m_playerPath)
+    {
+        if (!n) continue;
+        if (m_onShortest[idx(n)]) hits++;
+    }
+    m_onShortestCount = hits;
+
+    // Overlap as "how cleanly you stayed on the optimal corridor"
+    m_overlap = (m_playerPath.empty()) ? 0.0f : (float)hits / (float)m_playerPath.size();
+
+    // Efficiency: 1 if you matched shortest steps, smaller if longer
+    m_efficiency = (m_shortestSteps <= 0) ? 1.0f :
+        (float)m_shortestSteps / (float)std::max(m_shortestSteps, m_playerSteps);
+
+    // Weighted score [0..100]
+    float s = 100.0f * (0.65f * m_overlap + 0.35f * m_efficiency);
+    s = std::max(0.0f, std::min(100.0f, s));
+    m_score = (int)std::round(s);
+
+    return true;
+}
+void GlobalState::drawShortestHintOverlay() const
+{
+    if (!m_showShortestHint) return;
+    if (m_shortestSteps < 0) return;
+    if (m_onShortest.empty()) return;
+
+    graphics::Brush br;
+    br.fill_opacity = 0.0f;
+    br.outline_opacity = 0.45f;
+    br.outline_width = 2.0f;
+    br.outline_color[0] = 0.25f;
+    br.outline_color[1] = 0.95f;
+    br.outline_color[2] = 0.55f; // green-ish
+
+    for (Node* n : m_nodes)
+    {
+        if (!n || !n->walkable) continue;
+        if (!m_onShortest[idx(n)]) continue;
+
+        const float cx = m_originX + n->col * m_cell + m_cell * 0.5f;
+        const float cy = m_originY + n->row * m_cell + m_cell * 0.5f;
+
+        graphics::drawRect(cx, cy, m_cell - 6.0f, m_cell - 6.0f, br);
+    }
+}
+

@@ -5,6 +5,10 @@
 #include "Node.h"
 #include "UIWidget.h"
 #include <unordered_set>
+#include <queue>
+#include <limits>
+#include <cmath>
+
 
 
 
@@ -113,5 +117,29 @@ private:
     void markInvalidNode(int index);
     void clearInvalidMarks();
 
+    // --- Scoring / shortest distance data ---
+    std::vector<int>  m_distStart;
+    std::vector<int>  m_distGoal;
+    std::vector<char> m_onShortest;     // 1 if cell is on any shortest path
+
+    int   m_shortestSteps = -1;         // shortest steps Start->Goal (BFS)
+    int   m_playerSteps = -1;           // player's steps (playerPath.size()-1)
+    int   m_onShortestCount = 0;        // how many player nodes on shortest corridor
+    float m_overlap = 0.0f;             // [0..1]
+    float m_efficiency = 0.0f;          // [0..1]
+    int   m_score = 0;                  // [0..100]
+
+    // UI toggles
+    bool  m_showShortestHint = true;    // draw outline on shortest-corridor cells
+    bool  m_autoScoreOnGoal = true;     // if true, compute score when player reaches goal
+
+    int idx(const Node* n) const { return n->row * m_cols + n->col; }
+
+    void computeBfsDistances(Node* src, std::vector<int>& dist);
+    bool computeShortestCorridor();   // fills m_shortestSteps + m_onShortest
+    bool computeScore();              // updates m_score + stats, returns true if scored
+    void resetScore();                // clears score HUD values
+
+    void drawShortestHintOverlay() const;
 
 };
