@@ -34,6 +34,11 @@ static constexpr float UI_RIGHT_W = 260.0f;
 static constexpr float UI_TOP_H = 64.0f;
 static constexpr float UI_MARGIN = 14.0f;
 
+template <typename T>
+T clampValue(T v, T lo, T hi)
+{
+    return (v < lo) ? lo : (v > hi) ? hi : v;
+}
 
 void GlobalState::init()
 {
@@ -178,6 +183,11 @@ void GlobalState::init()
         {
             computeScore();
         });
+
+    addBtn("Easy", [this]() { generateMazeByDifficulty(0); });
+    addBtn("Medium", [this]() { generateMazeByDifficulty(1); });
+    addBtn("Difficult", [this]() { generateMazeByDifficulty(2); });
+
 
     ToggleButton* hintBtn = new ToggleButton(bx, by, bw, bh, "Show Shortest Hint", &m_showShortestHint);
     m_ui.push_back(hintBtn);
@@ -373,7 +383,7 @@ void GlobalState::cancelAStar()
     m_open.clear();
     m_stepAccumMs = 0.0f;
 
-    // êáèÜñéóå Open/Closed/Path áëëÜ êñÜôá walls + start/goal
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Open/Closed/Path ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ walls + start/goal
     resetSearchVisuals();
 
     m_status = "A*: stopped. SPACE: start/pause | R: reset search";
@@ -479,6 +489,8 @@ void GlobalState::update(float dt)
     graphics::MouseState ms{};
     graphics::getMouseState(ms);
 
+    updateAttemptTimer(dt);
+
     // --- key edge detection ---
     bool spaceDown = graphics::getKeyState(graphics::SCANCODE_SPACE);
     bool rDown = graphics::getKeyState(graphics::SCANCODE_R);
@@ -515,6 +527,7 @@ void GlobalState::update(float dt)
             {
                 if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused) {
                     cancelAStar();
+                    resetAttemptTimer();
                     resetScore();
                 }
 
@@ -527,7 +540,7 @@ void GlobalState::update(float dt)
             if (ms.button_left_pressed)
             {
                 stopAStarIfActive();
-
+                resetAttemptTimer();
                 Node* n = nodeFromMouse(mx, my);
                 if (n && n != m_start && n != m_goal)
                 {
@@ -543,6 +556,8 @@ void GlobalState::update(float dt)
             {
                 stopAStarIfActive();
                 beginPlayerDrawing();
+                startAttemptTimer();
+
 
                 // If user clicked somewhere other than start, we still begin at start.
                 // Next frames while dragging will add cells.
@@ -570,13 +585,15 @@ void GlobalState::update(float dt)
                     {
                         // keep last drawn to prevent spamming the same invalid cell
                         m_lastDrawn = n;
-                    }
+                      }
                 }
             }
 
             if (ms.button_left_released)
             {
                 endPlayerDrawing();
+                stopAttemptTimer();
+
 
                 m_pathValidation = validatePlayerPath();
 
@@ -801,6 +818,17 @@ void GlobalState::draw() const
     std::string line = (m_score > 0) ? stats : m_status;
     graphics::drawText(300.0f, 70.0f, 16.0f, line, t);
 
+    std::string timeStr = m_timerEnabled
+        ? ("Time: " + formatTime(m_timerRunning ? m_attemptTimeMs : m_lastAttemptMs))
+        : "Time: OFF";
+
+    std::string pointsStr =
+        "Points: " + std::to_string(m_finalPoints) +
+        " (Base " + std::to_string(m_score) +
+        " + " + std::to_string(m_timeBonus) + ")";
+
+    graphics::drawText(820.0f, 48.0f, 16.0f, timeStr, t);
+    graphics::drawText(820.0f, 68.0f, 16.0f, pointsStr, t);
 
 
     if (m_showHelp)
@@ -898,7 +926,7 @@ bool GlobalState::appendPlayerPath(Node* n)
 
     m_playerPath.push_back(n);
 
-    // paint it (don’t overwrite goal)
+    // paint it (donï¿½t overwrite goal)
     if (n != m_goal && n != m_start)
         n->state = NodeVizState::PlayerPath;
 
@@ -1114,6 +1142,7 @@ bool GlobalState::computeScore()
     float s = 100.0f * (0.65f * m_overlap + 0.35f * m_efficiency);
     s = std::max(0.0f, std::min(100.0f, s));
     m_score = (int)std::round(s);
+    applyTimerBonus();
 
     return true;
 }
@@ -1142,4 +1171,73 @@ void GlobalState::drawShortestHintOverlay() const
         graphics::drawRect(cx, cy, m_cell - 6.0f, m_cell - 6.0f, br);
     }
 }
+
+void GlobalState::startAttemptTimer()
+{
+    if (!m_timerEnabled) return;
+    m_attemptTimeMs = 0.0f;
+    m_timerRunning = true;
+}
+
+void GlobalState::stopAttemptTimer()
+{
+    if (!m_timerEnabled) return;
+    m_timerRunning = false;
+    m_lastAttemptMs = m_attemptTimeMs;
+}
+
+void GlobalState::resetAttemptTimer()
+{
+    m_timerRunning = false;
+    m_attemptTimeMs = 0.0f;
+    m_lastAttemptMs = 0.0f;
+    m_timeBonus = 0;
+}
+
+void GlobalState::updateAttemptTimer(float dt)
+{
+    if (!m_timerEnabled) return;
+    if (m_timerRunning)
+        m_attemptTimeMs += dt; // dt is ms in your project
+}
+
+std::string GlobalState::formatTime(float ms) const
+{
+    int totalMs = (int)std::round(std::max(0.0f, ms));
+    int minutes = totalMs / 60000;
+    int seconds = (totalMs % 60000) / 1000;
+    int msec = totalMs % 1000;
+
+    std::ostringstream oss;
+    oss << minutes << ":" << std::setw(2) << std::setfill('0') << seconds
+        << "." << std::setw(3) << std::setfill('0') << msec;
+    return oss.str();
+}
+
+void GlobalState::applyTimerBonus()
+{
+    m_timeBonus = 0;
+
+    // Par time depends on shortest steps (BFS shortest distance)
+    const float parMs = m_parBaseMs + m_parPerStepMs * std::max(0, m_shortestSteps);
+
+    if (!m_timerEnabled || m_lastAttemptMs <= 0.0f || parMs <= 0.0f)
+    {
+        int pts = m_score;
+        if (!m_allowScoreOver100) pts = std::min(pts, 100);
+        m_finalPoints = std::max(0, pts);
+        return;
+    }
+
+    // Faster than par -> bonus, slower -> 0
+    float ratio = (parMs - m_lastAttemptMs) / parMs; // >0 if faster
+    ratio = clampValue(ratio, 0.0f, 1.0f);
+
+    m_timeBonus = (int)std::round((float)m_maxTimeBonus * ratio);
+
+    int pts = m_score + m_timeBonus;
+    if (!m_allowScoreOver100) pts = std::min(pts, 100);
+    m_finalPoints = std::max(0, pts);
+}
+
 

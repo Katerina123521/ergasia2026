@@ -47,14 +47,14 @@ Recommended:
 ### Gameplay (new “player vs algorithm” mode)
 - [x] Add **Draw Mode**: player draws a path from Start to Goal by dragging/clicking cells.
 - [x] Validate path: must be continuous and cannot go through walls.
-- [ ] Compute **A* optimal path** and compare to player path:
-  - [ ] Score based on overlap with A* path (Jaccard/overlap ratio)
-  - [ ] Penalty for extra steps (path length difference)
-  - [ ] Bonus for matching key turns/waypoints
-- [ ] Show feedback after submission:
-  - [ ] overlay player path vs A* path
-  - [ ] score breakdown (overlap %, extra steps, mistakes)
-- [ ] Add timer (optional) and combo/bonus system for replayability.
+- [x] Compute **A* optimal path** and compare to player path:
+  - [x] Score based on overlap with A* path (Jaccard/overlap ratio)
+  - [x] Penalty for extra steps (path length difference)
+  - [x] Bonus for matching key turns/waypoints
+- [x] Show feedback after submission:
+  - [x] overlay player path vs A* path
+  - [x] score breakdown (overlap %, extra steps, mistakes)
+- [x] Add timer (optional) and combo/bonus system for replayability.
 
 ### Levels system
 - [ ] Load levels from text files, e.g. `assets/levels/level01.txt`

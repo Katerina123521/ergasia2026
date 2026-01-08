@@ -8,6 +8,10 @@
 #include <queue>
 #include <limits>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+
 
 
 
@@ -142,4 +146,26 @@ private:
 
     void drawShortestHintOverlay() const;
 
+
+    // --- Timer bonus only ---
+    bool  m_timerEnabled = true;
+    bool  m_timerRunning = false;
+    float m_attemptTimeMs = 0.0f;   // current attempt time
+    float m_lastAttemptMs = 0.0f;   // time of last finished attempt
+
+    int   m_timeBonus = 0;          // 0..20
+    int   m_finalPoints = 0;        // base score + time bonus (clamped if you want)
+    bool  m_allowScoreOver100 = false; // optional
+
+    // Tunables for par-time
+    float m_parBaseMs = 800.0f;
+    float m_parPerStepMs = 220.0f;
+    int   m_maxTimeBonus = 20;
+    void startAttemptTimer();
+    void stopAttemptTimer();
+    void resetAttemptTimer();
+    void updateAttemptTimer(float dt);
+    std::string formatTime(float ms) const;
+
+    void applyTimerBonus(); // uses m_score, m_shortestSteps, m_lastAttemptMs
 };
