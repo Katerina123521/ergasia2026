@@ -87,6 +87,9 @@ void GlobalState::init()
     float bh = 42.0f;
 
     float gap = 10.0f;
+    // same width as Easy/Medium/Hard buttons (1/3 of panel width)
+    float smallW = (bw - 2.0f * gap) / 2.2f;
+
 
     auto skinBtn = [&](Button* b, const std::string& theme)
         {
@@ -94,6 +97,22 @@ void GlobalState::init()
             b->texHover = "assets/ui/btn_" + theme + "_hover.png";
             b->texDown = "assets/ui/btn_" + theme + "_down.png";
             b->texDisabled = "assets/ui/btn_gray_idle.png";
+        };
+
+    auto centerTextPad = [](Button* b)
+        {
+            if (!b) return;
+
+            // προσεγγιστικό πλάτος κειμένου
+            float approxTextW = (float)b->text.size() * b->textSize * 0.55f;
+
+            // pad ώστε το text να κάτσει περίπου στο κέντρο
+            float pad = (b->w - approxTextW) * 0.5f;
+
+            // μικρό clamp για να μην βγει αρνητικό / να μην κολλήσει στο border
+            if (pad < 6.0f) pad = 6.0f;
+
+            b->padX = pad;
         };
 
 
@@ -123,14 +142,35 @@ void GlobalState::init()
             Button* b = new Button(x, y, w, h, txt, cb);
             b->clickSound = "assets/hit1.wav";
             b->clickVolume = 0.20f;
-            b->textSize = 16.0f;     // smaller for these
+            b->textSize = 18.0f;     // smaller for these
             skinBtn(b, theme);
             m_ui.push_back(b);
             return b;
         };
 
+    auto addSmallBtn = [&](const std::string& txt, const std::string& theme, const std::string& icon, std::function<void()> cb)
+        {
+            Button* b = new Button(bx, by, smallW, bh, txt, cb);
+            b->clickSound = "assets/hit1.wav";
+            b->clickVolume = 0.20f;
 
-    addBtn("Run / Pause A*", "blue", "", [this]()
+            b->iconTex = icon;
+
+            // λίγο πιο μικρό κείμενο/padding για να χωράνε καλύτερα
+            b->textSize = 16.0f;
+            centerTextPad(b);
+
+
+            skinBtn(b, theme);
+
+            m_ui.push_back(b);
+            by += (bh + gap);
+            return b;
+        };
+
+
+    addSmallBtn("      Run/Pause", "blue", "", [this]()
+
     {
         if (m_aState == AStarRunState::Idle || m_aState == AStarRunState::Found || m_aState == AStarRunState::NoPath)
             startAStar();
@@ -140,18 +180,23 @@ void GlobalState::init()
             m_aState = AStarRunState::Running;
     });
 
-    Button* speedBtn = addBtn("Speed: x1", "orange", "", []() {});
+    Button* speedBtn = addSmallBtn("       Speed x1", "orange", "", []() {});
+
     speedBtn->onClick = [this, speedBtn]()
     {
         m_speedIndex = (m_speedIndex + 1) % 7;
         m_stepDelayMs = SPEED_LEVELS[m_speedIndex];
 
         static const char* labels[7] = { "x0.5", "x0.75", "x1", "x1.5", "x2", "x3", "x5" };
-        speedBtn->text = std::string("Speed: ") + labels[m_speedIndex];
+        speedBtn->text = std::string("Speed ") + labels[m_speedIndex];
+
     };
+    centerTextPad(speedBtn);
 
 
-    addBtn("Step (one node) A*", "blue", "", [this]()
+
+    addSmallBtn("Step", "blue", "", [this]()
+
         {
             if (m_aState == AStarRunState::Idle || m_aState == AStarRunState::Found || m_aState == AStarRunState::NoPath)
             {
@@ -164,6 +209,7 @@ void GlobalState::init()
                 stepAStar();
         });
 
+    
     // --- Level row (3 buttons on one line) ---
     float levelH = bh * 0.80f;                 // a bit shorter than normal buttons
     float levelW = (bw - 2.0f * gap) / 3.0f;   // 3 buttons + 2 gaps inside panel width bw
@@ -182,7 +228,8 @@ void GlobalState::init()
     // move the cursor down AFTER the row
     by += (levelH + gap);
 
-    addBtn("Random Walls", "orange", "", [this]()
+    addSmallBtn("Random", "orange", "", [this]()
+
         {
             cancelAStar();
             resetScore();
@@ -198,14 +245,16 @@ void GlobalState::init()
         });
 
     // Reset search (keep walls + endpoints)
-    addBtn("Reset A* Search", "red", "", [this]()
+    addSmallBtn("Reset", "red", "", [this]()
+
         {
             cancelAStar();
             resetScore();
         });
 
     // Clear all (walls + path), keep endpoints
-    addBtn("Clear Walls", "red", "", [this]()
+    addSmallBtn("Clear", "red", "", [this]()
+
         {
             cancelAStar();
             clearWallsAndPathKeepEndpoints();
@@ -213,22 +262,29 @@ void GlobalState::init()
         });
 
 
-    Button* hintBtn = addBtn("Hint: OFF", "pink", "", []() {});
+    Button* hintBtn = addSmallBtn("       Hint OFF", "pink", "", []() {});
+
+
     hintBtn->onClick = [this, hintBtn]()
         {
             m_showShortestHint = !m_showShortestHint;
-            hintBtn->text = std::string("Hint: ") + (m_showShortestHint ? "ON" : "OFF");
+            hintBtn->text = std::string("Hint ") + (m_showShortestHint ? "ON" : "OFF");
         };
+    centerTextPad(hintBtn);
 
-	Button* helpBtn = addBtn("Help: OFF", "pink", "", []() {});
+
+    Button* helpBtn = addSmallBtn("       Help OFF", "pink", "", []() {});
+
     helpBtn->onClick = [this, helpBtn]()
     {
         m_showHelp = !m_showHelp;
-        helpBtn->text = std::string("Help: ") + (m_showHelp ? "ON" : "OFF");
+        helpBtn->text = std::string("Help ") + (m_showHelp ? "ON" : "OFF");
     };
+    centerTextPad(helpBtn);
 
 
-    Button* musicBtn = addBtn("Music: OFF", "pink", "", []() {});
+    Button* musicBtn = addSmallBtn("       Music OFF", "pink", "", []() {});
+
     musicBtn->onClick = [this, musicBtn]()
     {
         m_musicOn = !m_musicOn;
@@ -242,15 +298,33 @@ void GlobalState::init()
             graphics::stopMusic(600);
         }
 
-        musicBtn->text = std::string("Music: ") + (m_showHelp ? "ON" : "OFF");
+        musicBtn->text = std::string("Music ") + (m_showHelp ? "ON" : "OFF");
+
     };
+    centerTextPad(musicBtn);
+
+
+    const float panelMargin = 6.0f;
+    const float panelTop = UI_TOP_H + panelMargin;
+    const float panelBottom = WIN_H - panelMargin;
+
+    const float rightPanelW = UI_RIGHT_W - 2.0f * panelMargin;
+
+    // άφησε χώρο για το “header” του panel (πάνω μέρος + γραμμή)
+    const float legendTop = panelTop + 70.0f;
+    const float legendBottom = panelBottom - 20.0f;
+
+    const float legendH = legendBottom - legendTop;
+    const float legendCy = (legendTop + legendBottom) * 0.5f;
 
     m_legend = new LegendPanel(
         WIN_W - UI_RIGHT_W * 0.5f,
-        UI_TOP_H + 220.0f,
-        UI_RIGHT_W - 2.0f * UI_MARGIN,
-        320.0f
+        legendCy,
+        rightPanelW,
+        legendH
     );
+    m_ui.push_back(m_legend);
+
     m_ui.push_back(m_legend);
 
 }
@@ -810,14 +884,20 @@ void GlobalState::draw() const
             graphics::drawRect(cx, cy - h * 0.5f + 44.0f, w - 32.0f, 2.0f, line);
         };
 
-    // left and right panels
-    drawSidebar(UI_LEFT_W * 0.5f, UI_TOP_H + (WIN_H - UI_TOP_H) * 0.5f,
-        UI_LEFT_W - 2.0f * UI_MARGIN, WIN_H - UI_TOP_H - 2.0f * UI_MARGIN,
+    const float panelMargin = 6.0f;                 // μικρότερο margin => πιο “μακρύ” panel
+    const float panelTop = UI_TOP_H + panelMargin;
+    const float panelBottom = WIN_H - panelMargin;
+    const float panelH = panelBottom - panelTop;
+    const float panelCy = (panelTop + panelBottom) * 0.5f;
+
+    drawSidebar(UI_LEFT_W * 0.5f, panelCy,
+        UI_LEFT_W - 2.0f * panelMargin, panelH,
         "Controls");
 
-    drawSidebar(WIN_W - UI_RIGHT_W * 0.5f, UI_TOP_H + (WIN_H - UI_TOP_H) * 0.5f,
-        UI_RIGHT_W - 2.0f * UI_MARGIN, WIN_H - UI_TOP_H - 2.0f * UI_MARGIN,
+    drawSidebar(WIN_W - UI_RIGHT_W * 0.5f, panelCy,
+        UI_RIGHT_W - 2.0f * panelMargin, panelH,
         "Legend");
+
 
 
     // Background

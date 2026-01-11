@@ -1,4 +1,4 @@
-#include "UIWidget.h"
+﻿#include "UIWidget.h"
 
 static void drawPanel(float cx, float cy, float w, float h, bool hovered, bool pressed)
 {
@@ -166,29 +166,93 @@ void LegendPanel::draw() const
 
     graphics::Brush title;
     title.fill_color[0] = 1.0f; title.fill_color[1] = 1.0f; title.fill_color[2] = 1.0f;
-    graphics::drawText(cx - w * 0.5f + 14.0f, cy - h * 0.5f + 26.0f, 20.0f, "Legend", title);
+
+    const float titleSize = 20.0f;
+    const std::string titleStr = "LEGEND";
+
+    // Προσέγγιση πλάτους κειμένου για centering
+    const float approxTextW = (float)titleStr.size() * titleSize * 0.45f;
+
+    const float titleX = cx - approxTextW * 0.5f;
+    const float titleY = cy - h * 0.5f + 26.0f;
+
+    graphics::drawText(titleX, titleY, titleSize, titleStr, title);
+
 
     float left = cx - w * 0.5f + 18.0f;
     float y = cy - h * 0.5f + 56.0f;
 
-    // Match your Node colors (keep consistent with Node.cpp)
-    legendRow(left + 10.0f, y, 16.0f, 0.10f, 0.10f, 0.10f, "Wall");        y += 22.0f;
-    legendRow(left + 10.0f, y, 16.0f, 0.20f, 0.80f, 0.20f, "Start");       y += 22.0f;
-    legendRow(left + 10.0f, y, 16.0f, 0.90f, 0.25f, 0.25f, "Goal");        y += 22.0f;
-    legendRow(left + 10.0f, y, 16.0f, 0.35f, 0.70f, 0.95f, "Open set");    y += 22.0f;
-    legendRow(left + 10.0f, y, 16.0f, 0.55f, 0.55f, 0.70f, "Closed set");  y += 22.0f;
-    legendRow(left + 10.0f, y, 16.0f, 1.00f, 0.85f, 0.15f, "Final path");  y += 26.0f;
-    legendRow(left + 10.0f, y, 16.0f, 0.85f, 0.25f, 0.85f, "Player path");  y += 26.0f;
+    const float legendStep = 26.0f;   // ύψος σειράς
+    const float legendGap = 6.0f;    // μικρό κενό ανάμεσα στις σειρές
+    const float legendLine = legendStep + legendGap;
+
+    legendRow(left + 10.0f, y, 16.0f, 0.10f, 0.10f, 0.10f, "Wall");        y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 0.20f, 0.80f, 0.20f, "Start");       y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 0.90f, 0.25f, 0.25f, "Goal");        y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 0.35f, 0.70f, 0.95f, "Open set");    y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 0.55f, 0.55f, 0.70f, "Closed set");  y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 1.00f, 0.85f, 0.15f, "Final path");  y += legendLine;
+    legendRow(left + 10.0f, y, 16.0f, 0.85f, 0.25f, 0.85f, "Player path"); y += legendLine;
 
 
-    graphics::Brush small;
-    small.fill_color[0] = 0.85f; small.fill_color[1] = 0.85f; small.fill_color[2] = 0.85f;
 
-    graphics::drawText(left, y, 15.0f, "Controls:", small); y += 18.0f;
-    graphics::drawText(left, y, 14.0f, "LMB: toggle wall", small); y += 16.0f;
-    graphics::drawText(left, y, 14.0f, "RMB: set Start", small); y += 16.0f;
-    graphics::drawText(left, y, 14.0f, "Shift+RMB: set Goal", small); y += 16.0f;
-    graphics::drawText(left, y, 14.0f, "SPACE: run/pause  |  R: reset search", small); y += 16.0f;
-    graphics::drawText(left, y, 14.0f, "D: toggle Draw Mode", small); y += 16.0f;
-    graphics::drawText(left, y, 14.0f, "Draw Mode: LMB drag to draw path", small); y += 16.0f;
+    // ---- Controls block: BOTTOM of the panel (bigger font + more spacing) ----
+    {
+        graphics::Brush small;
+        small.fill_color[0] = 1.0f; small.fill_color[1] = 1.0f; small.fill_color[2] = 1.0f;
+        small.fill_opacity = 1.0f;
+        small.outline_opacity = 0.0f;
+
+        // Ρυθμίσεις εμφάνισης
+        const float fontTitle = 22.0f;   // Controls:
+        const float fontLine = 16.0f;   // οι γραμμές
+        const float gap = 12.0f;         // κενό μεταξύ σειρών
+        const float padBottom = 28.0f;   // απόσταση από κάτω
+
+        const char* lines[] = {
+            "Controls:",
+            "L MB:   toggle wall",
+            "R MB:   set Start",
+            "Shift + R MB:   set Goal",
+            "SPACE:   run/pause",
+            "R:   reset search",       
+            "D:   toggle Draw Mode",
+            "Draw Mode:   L MB drag to draw path"
+        };
+        const int N = (int)(sizeof(lines) / sizeof(lines[0]));
+
+        // Υπολογισμός συνολικού ύψους του block
+        float totalH = 0.0f;
+        for (int i = 0; i < N; i++)
+        {
+            float fs = (i == 0) ? fontTitle : fontLine;
+            totalH += fs;
+            if (i < N - 1) totalH += gap;
+        }
+
+        // bottom-aligned start y
+        const float bottom = cy + h * 0.5f;
+        float yy = (bottom - padBottom) - totalH;
+
+        const float x = left;
+
+        for (int i = 0; i < N; i++)
+        {
+            float fs = (i == 0) ? fontTitle : fontLine;
+
+            // (προαιρετικό) μικρή σκιά για να ξεχωρίζει χωρίς να παχαίνει
+            graphics::Brush sh = small;
+            sh.fill_color[0] = 0.0f; sh.fill_color[1] = 0.0f; sh.fill_color[2] = 0.0f;
+            sh.fill_opacity = 0.35f;
+            graphics::drawText(x + 1.0f, yy + 1.0f, fs, lines[i], sh);
+
+            // καθαρό κείμενο (ΜΟΝΟ 1 φορά)
+            graphics::drawText(x, yy, fs, lines[i], small);
+
+
+            yy += fs + gap;
+        }
+    }
+
+
 }
