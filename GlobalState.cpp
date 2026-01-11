@@ -43,6 +43,8 @@ T clampValue(T v, T lo, T hi)
 
 void GlobalState::init()
 {
+    graphics::preloadBitmaps("assets/ui");
+
     m_levelsEasy = { "assets/levels/easy_01.txt", "assets/levels/easy_02.txt" };
     m_levelsMedium = { "assets/levels/medium_01.txt", "assets/levels/medium_02.txt" };
     m_levelsHard = { "assets/levels/hard_01.txt", "assets/levels/hard_02.txt" };
@@ -86,33 +88,70 @@ void GlobalState::init()
 
     float gap = 10.0f;
 
-    auto addBtn = [&](const std::string& txt, std::function<void()> cb)
+    auto skinBtn = [&](Button* b, const std::string& theme)
         {
-            Button* b = new Button(bx, by, bw, bh, txt, cb);
+            b->texIdle = "assets/ui/btn_" + theme + "_idle.png";
+            b->texHover = "assets/ui/btn_" + theme + "_hover.png";
+            b->texDown = "assets/ui/btn_" + theme + "_down.png";
+            b->texDisabled = "assets/ui/btn_gray_idle.png";
+        };
+
+
+    auto addBtn = [&](const std::string& txt, const std::string& theme, const std::string& icon, std::function<void()> cb)
+    {
+        Button* b = new Button(bx, by, bw, bh, txt, cb);
+        b->clickSound = "assets/hit1.wav";
+        b->clickVolume = 0.20f;
+
+        b->iconTex = icon;
+        b->textSize = 18.0f;
+        b->padX = 18.0f;
+
+        skinBtn(b, theme);
+
+        m_ui.push_back(b);
+        by += (bh + gap);
+        return b;
+    };
+
+    auto addBtnAt = [&](float x, float y,
+        float w, float h,
+        const std::string& txt,
+        const std::string& theme,
+        std::function<void()> cb)
+        {
+            Button* b = new Button(x, y, w, h, txt, cb);
             b->clickSound = "assets/hit1.wav";
             b->clickVolume = 0.20f;
+            b->textSize = 16.0f;     // smaller for these
+            skinBtn(b, theme);
             m_ui.push_back(b);
-            by += (bh + gap);
             return b;
         };
 
-    // Run/Pause
-    addBtn("Run / Pause", [this]()
-        {
-            // Use your step-by-step state machine here:
-            // Idle/Found/NoPath -> startAStar()
-            // Running -> Paused
-            // Paused -> Running
-            if (m_aState == AStarRunState::Idle || m_aState == AStarRunState::Found || m_aState == AStarRunState::NoPath)
-                startAStar();
-            else if (m_aState == AStarRunState::Running)
-                m_aState = AStarRunState::Paused;
-            else if (m_aState == AStarRunState::Paused)
-                m_aState = AStarRunState::Running;
-        });
 
-    // Step (one expansion)
-    addBtn("Step (one node)", [this]()
+    addBtn("Run / Pause A*", "blue", "", [this]()
+    {
+        if (m_aState == AStarRunState::Idle || m_aState == AStarRunState::Found || m_aState == AStarRunState::NoPath)
+            startAStar();
+        else if (m_aState == AStarRunState::Running)
+            m_aState = AStarRunState::Paused;
+        else if (m_aState == AStarRunState::Paused)
+            m_aState = AStarRunState::Running;
+    });
+
+    Button* speedBtn = addBtn("Speed: x1", "orange", "", []() {});
+    speedBtn->onClick = [this, speedBtn]()
+    {
+        m_speedIndex = (m_speedIndex + 1) % 7;
+        m_stepDelayMs = SPEED_LEVELS[m_speedIndex];
+
+        static const char* labels[7] = { "x0.5", "x0.75", "x1", "x1.5", "x2", "x3", "x5" };
+        speedBtn->text = std::string("Speed: ") + labels[m_speedIndex];
+    };
+
+
+    addBtn("Step (one node) A*", "blue", "", [this]()
         {
             if (m_aState == AStarRunState::Idle || m_aState == AStarRunState::Found || m_aState == AStarRunState::NoPath)
             {
@@ -125,25 +164,28 @@ void GlobalState::init()
                 stepAStar();
         });
 
-    // Reset search (keep walls + endpoints)
-    addBtn("Reset Search", [this]()
-        {
-            cancelAStar(); // should keep walls + start/goal, clear Open/Closed/Path
-            resetScore();
-        });
+    // --- Level row (3 buttons on one line) ---
+    float levelH = bh * 0.80f;                 // a bit shorter than normal buttons
+    float levelW = (bw - 2.0f * gap) / 3.0f;   // 3 buttons + 2 gaps inside panel width bw
 
-    // Clear all (walls + path), keep endpoints
-    addBtn("Clear Walls", [this]()
+    float leftEdge = bx - bw * 0.5f;           // panel left edge (since bx is panel center)
+    float x1 = leftEdge + levelW * 0.5f;
+    float x2 = x1 + levelW + gap;
+    float x3 = x2 + levelW + gap;
+
+    float yLevels = by;                         // current row y
+
+    addBtnAt(x1, yLevels, levelW, levelH, "Easy", "green", [this]() { loadNextLevel(0); });
+    addBtnAt(x2, yLevels, levelW, levelH, "Medium", "orange", [this]() { loadNextLevel(1); });
+    addBtnAt(x3, yLevels, levelW, levelH, "Hard", "red", [this]() { loadNextLevel(2); });
+
+    // move the cursor down AFTER the row
+    by += (levelH + gap);
+
+    addBtn("Random Walls", "orange", "", [this]()
         {
             cancelAStar();
-            clearWallsAndPathKeepEndpoints();
             resetScore();
-        });
-
-    // Random walls (nice for quick demos)
-    addBtn("Random Walls", [this]()
-        {
-            cancelAStar();
             // simple random fill
             for (Node* n : m_nodes)
             {
@@ -155,58 +197,53 @@ void GlobalState::init()
             }
         });
 
-    // Speed -
-    addBtn("Speed -", [this]()
+    // Reset search (keep walls + endpoints)
+    addBtn("Reset A* Search", "red", "", [this]()
         {
-            m_stepDelayMs = std::min(200.0f, m_stepDelayMs + 10.0f);
+            cancelAStar();
+            resetScore();
         });
 
-    // Speed +
-    addBtn("Speed +", [this]()
+    // Clear all (walls + path), keep endpoints
+    addBtn("Clear Walls", "red", "", [this]()
         {
-            m_stepDelayMs = std::max(5.0f, m_stepDelayMs - 10.0f);
+            cancelAStar();
+            clearWallsAndPathKeepEndpoints();
+            resetScore();
         });
 
-    addBtn("Music ON/OFF", [this]()
+
+    Button* hintBtn = addBtn("Hint: OFF", "pink", "", []() {});
+    hintBtn->onClick = [this, hintBtn]()
         {
-            m_musicOn = !m_musicOn;
+            m_showShortestHint = !m_showShortestHint;
+            hintBtn->text = std::string("Hint: ") + (m_showShortestHint ? "ON" : "OFF");
+        };
 
-            if (m_musicOn)
-            {
-                graphics::playMusic(m_musicFile, m_musicVolume, true, 600);
-                m_status = "Music: ON";
-            }
-            else
-            {
-                graphics::stopMusic(600);
-                m_status = "Music: OFF";
-            }
-        });
+	Button* helpBtn = addBtn("Help: OFF", "pink", "", []() {});
+    helpBtn->onClick = [this, helpBtn]()
+    {
+        m_showHelp = !m_showHelp;
+        helpBtn->text = std::string("Help: ") + (m_showHelp ? "ON" : "OFF");
+    };
 
-    addBtn("Submit / Score", [this]()
+
+    Button* musicBtn = addBtn("Music: OFF", "pink", "", []() {});
+    musicBtn->onClick = [this, musicBtn]()
+    {
+        m_musicOn = !m_musicOn;
+
+        if (m_musicOn)
         {
-            computeScore();
-        });
-    addBtn("Easy", [this]() { loadNextLevel(0); });
-    addBtn("Medium", [this]() { loadNextLevel(1); });
-    addBtn("Difficult", [this]() { loadNextLevel(2); });
+            graphics::playMusic(m_musicFile, m_musicVolume, true, 600);
+        }
+        else
+        {
+            graphics::stopMusic(600);
+        }
 
-    ToggleButton* hintBtn = new ToggleButton(bx, by, bw, bh, "Show Shortest Hint", &m_showShortestHint);
-    m_ui.push_back(hintBtn);
-    by += (bh + gap);
-
-    ToggleButton* autoBtn = new ToggleButton(bx, by, bw, bh, "Auto-score on Goal", &m_autoScoreOnGoal);
-    m_ui.push_back(autoBtn);
-    by += (bh + gap);
-
-
-
-    // Help toggle
-    ToggleButton* helpBtn = new ToggleButton(bx, by, bw, bh, "Help", &m_showHelp);
-    helpBtn->clickSound = "assets/hit1.wav";
-    helpBtn->clickVolume = 0.20f;
-    m_ui.push_back(helpBtn);
-    by += (bh + gap);
+        musicBtn->text = std::string("Music: ") + (m_showHelp ? "ON" : "OFF");
+    };
 
     m_legend = new LegendPanel(
         WIN_W - UI_RIGHT_W * 0.5f,
@@ -738,6 +775,7 @@ void GlobalState::update(float dt)
 
 void GlobalState::draw() const
 {
+
     auto drawSidebar = [](float cx, float cy, float w, float h, const char* title)
         {
             // shadow
@@ -784,8 +822,13 @@ void GlobalState::draw() const
 
     // Background
     graphics::Brush bg;
-    bg.fill_color[0] = 0.12f; bg.fill_color[1] = 0.12f; bg.fill_color[2] = 0.14f;
+    bg.outline_opacity = 0.0f;
     bg.fill_opacity = 1.0f;
+    bg.fill_color[0] = 0.65f;
+    bg.fill_color[1] = 0.65f;
+    bg.fill_color[2] = 0.65f;
+
+    bg.texture = "assets/bg.png";
     graphics::drawRect(WIN_W * 0.5f, WIN_H * 0.5f, (float)WIN_W, (float)WIN_H, bg);
 
     // Polymorphic draw call
@@ -807,10 +850,10 @@ void GlobalState::draw() const
 
     graphics::Brush t;
     t.fill_color[0] = 1.0f; t.fill_color[1] = 1.0f; t.fill_color[2] = 1.0f;
-
-    // move text down so it doesn't touch the top edge
+    graphics::setFont(m_fontTitle);
     graphics::drawText(18.0f, 48.0f, 26.0f, m_title, t);
-    graphics::drawText(300.0f, 48.0f, 18.0f, m_status, t);
+    graphics::setFont(m_fontUI);
+    //graphics::drawText(300.0f, 48.0f, 18.0f, m_status, t);
     std::string stats =
         "Score " + std::to_string(m_score) +
         " | overlap " + std::to_string((int)std::round(m_overlap * 100.0f)) + "%" +
@@ -818,19 +861,19 @@ void GlobalState::draw() const
         " | shortest " + std::to_string(m_shortestSteps) +
         " | yours " + std::to_string(m_playerSteps);
     std::string line = (m_score > 0) ? stats : m_status;
-    graphics::drawText(300.0f, 70.0f, 16.0f, line, t);
+    graphics::drawText(350.0f, 50.0f, 23.0f, line, t);
 
     std::string timeStr = m_timerEnabled
         ? ("Time: " + formatTime(m_timerRunning ? m_attemptTimeMs : m_lastAttemptMs))
         : "Time: OFF";
 
     std::string pointsStr =
-        "Points: " + std::to_string(m_finalPoints) +
-        " (Base " + std::to_string(m_score) +
-        " + " + std::to_string(m_timeBonus) + ")";
+        "Points: " + std::to_string(m_finalPoints);
+	if (m_timeBonus != 0)
+        pointsStr+= " + " + std::to_string(m_timeBonus) + "time bonus";
 
-    graphics::drawText(820.0f, 48.0f, 16.0f, timeStr, t);
-    graphics::drawText(820.0f, 68.0f, 16.0f, pointsStr, t);
+    graphics::drawText(900.0f, 28.0f, 20.0f, timeStr, t);
+    graphics::drawText(900.0f, 48.0f, 20.0f, pointsStr, t);
 
 
     if (m_showHelp)
@@ -841,7 +884,6 @@ void GlobalState::draw() const
         ov.outline_opacity = 0.0f;
         graphics::drawRect(512.0f, 384.0f, 1024.0f, 768.0f, ov);
 
-        // help panel
         graphics::Brush p;
         p.fill_color[0] = 0.14f; p.fill_color[1] = 0.16f; p.fill_color[2] = 0.20f;
         p.fill_opacity = 0.95f;

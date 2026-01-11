@@ -81,8 +81,7 @@ private:
     bool m_showHelp = false;   // big overlay
     LegendPanel* m_legend = nullptr;
 
-    // (optional) keep UI text/status here
-    std::string m_title = "A* Pathfinder";
+    std::string m_title = "StarPath Quest";
 
     bool m_musicOn = true;
     float m_musicVolume = 0.20f;
@@ -183,4 +182,10 @@ private:
     bool loadLevelFromFile(const std::string& relPath);
     void loadNextLevel(int difficulty);  // easy/medium/hard
     void rebuildGrid(int newRows, int newCols);
+
+    std::string m_fontTitle = "assets/PressStart2P.ttf";
+    std::string m_fontUI = "assets/VT323.ttf";
+    int m_speedIndex = 3; // start in the middle
+    static constexpr float SPEED_LEVELS[7] = { 200, 120, 80, 50, 30, 18, 10 };
+
 };

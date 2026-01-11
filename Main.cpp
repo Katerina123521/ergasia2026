@@ -19,13 +19,11 @@ int main()
     const int W = 1024;
     const int H = 768;
 
-    graphics::createWindow(W, H, "SGG A* Grid Demo");
+    graphics::createWindow(W, H, "StarPath Quest");
 
     graphics::setCanvasSize((float)W, (float)H);
     graphics::setCanvasScaleMode(graphics::CANVAS_SCALE_FIT);
-
-    graphics::setFont("assets/orange_juice.ttf");
-
+	//graphics::setFullScreen(true);
 
     // Single GlobalState instance (stored as user data) :contentReference[oaicite:6]{index=6}
     auto* gs = new GlobalState();

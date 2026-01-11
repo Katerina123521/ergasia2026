@@ -146,7 +146,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GlobalState.h" />
+    <ClInclude Include="Grid.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="Pathfinder.h" />
     <ClInclude Include="UIWidget.h" />
     <ClInclude Include="VisualAsset.h" />
   </ItemGroup>

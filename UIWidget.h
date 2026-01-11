@@ -35,9 +35,19 @@ public:
     std::string text;
     std::function<void()> onClick;
 
-    // optional sound when clicked
-    std::string clickSound = ""; // e.g. "assets/hit1.wav"
+    std::string clickSound = "";
     float clickVolume = 0.25f;
+
+    std::string texIdle = "assets/ui/btn_blue_idle.png";
+    std::string texHover = "assets/ui/btn_blue_hover.png";
+    std::string texDown = "assets/ui/btn_blue_down.png";
+    std::string texDisabled = "assets/ui/btn_gray_idle.png";
+
+    std::string iconTex = "";   // e.g. "assets/ui/icon_play.png"
+    float iconScale = 0.55f;    // icon size relative to button height
+
+    float textSize = 18.0f;
+    float padX = 18.0f;
 
     Button(float x, float y, float width, float height, std::string t, std::function<void()> cb)
         : UIWidget(x, y, width, height), text(std::move(t)), onClick(std::move(cb)) {

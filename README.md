@@ -2,7 +2,8 @@
 
 A small interactive A* pathfinding “game” built with the **Simple Game Graphics (SGG)** library.
 
-You can place walls, set Start/Goal, and watch A* explore the grid step-by-step.  
+You can place walls, set Start/Goal, 
+and watch A* explore the grid step-by-step.  
 Next, the project will evolve into a game where the player draws a path and earns points based on how close it is to the optimal A* route.
 
 ## Features (current)

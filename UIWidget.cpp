@@ -43,93 +43,86 @@ static void drawPanel(float cx, float cy, float w, float h, bool hovered, bool p
 
 bool Button::handleInput(const graphics::MouseState& ms, float mx, float my)
 {
-    if (!visible || !enabled) return false;
+    if (!visible) return false;
 
     hovered = hitTest(mx, my);
 
-    // press starts
+    // If disabled still capture mouse when hovering
+    if (!enabled)
+    {
+        pressed = false;
+        return hovered;
+    }
+
+    // Press begins only if click starts inside
     if (hovered && ms.button_left_pressed)
     {
         pressed = true;
         return true;
     }
 
-    // release completes click
-    if (pressed && ms.button_left_released)
+    // Release ends press; click triggers only if released on button
+    if (ms.button_left_released)
     {
+        bool wasPressed = pressed;
         pressed = false;
-        if (hovered && onClick)
+
+        if (wasPressed && hovered)
         {
-            onClick();
             if (!clickSound.empty())
-                graphics::playSound(clickSound, clickVolume, false);
+                graphics::playSound(clickSound, clickVolume);
+
+            if (onClick) onClick();
+            return true;
         }
-        return true;
     }
 
-    // if mouse released elsewhere, stop pressed
-    if (!ms.button_left_down)
-        pressed = false;
-
-    // capture hover so the grid doesn't toggle behind the UI
     return hovered || pressed;
 }
 
-//void Button::draw() const
-//{
-//    if (!visible) return;
-//
-//    drawPanel(cx, cy, w, h, hovered, pressed);
-//
-//    graphics::Brush txt;
-//    txt.fill_color[0] = 1.0f; txt.fill_color[1] = 1.0f; txt.fill_color[2] = 1.0f;
-//    txt.fill_opacity = enabled ? 1.0f : 0.5f;
-//
-//    // left-aligned text with padding
-//    const float pad = 14.0f;
-//    const float size = 18.0f;
-//    graphics::drawText(cx - w * 0.5f + pad, cy + 6.0f, size, text, txt);
-//}
+
 void Button::draw() const
 {
     if (!visible) return;
 
-    // flatter button: minimal shadow
+	std::string tex = texIdle; //texture based on state
+    if (!enabled)        tex = texDisabled;
+    else if (pressed)    tex = texDown;
+    else if (hovered)    tex = texHover;
+
+    
     graphics::Brush br;
-    br.gradient = true;
-    br.gradient_dir_u = 0.0f; br.gradient_dir_v = 1.0f;
-
-    br.fill_opacity = enabled ? 0.92f : 0.50f;
-    br.fill_secondary_opacity = br.fill_opacity;
-
-    br.fill_color[0] = hovered ? 0.16f : 0.13f;
-    br.fill_color[1] = hovered ? 0.18f : 0.14f;
-    br.fill_color[2] = hovered ? 0.22f : 0.18f;
-
-    br.fill_secondary_color[0] = 0.09f;
-    br.fill_secondary_color[1] = 0.10f;
-    br.fill_secondary_color[2] = 0.13f;
-
-    br.outline_opacity = 1.0f;
-    br.outline_width = 1.0f;
-    br.outline_color[0] = 0.18f; br.outline_color[1] = 0.20f; br.outline_color[2] = 0.25f;
+    br.outline_opacity = 0.0f;
+    br.fill_opacity = 1.0f;
+    br.fill_color[0] = 1.0f; br.fill_color[1] = 1.0f; br.fill_color[2] = 1.0f; //white
+    br.texture = tex;
 
     graphics::drawRect(cx, cy, w, h, br);
 
-    // accent stripe on the left
-    graphics::Brush acc;
-    acc.fill_opacity = pressed ? 0.85f : 0.70f;
-    acc.outline_opacity = 0.0f;
-    acc.fill_color[0] = 0.25f; acc.fill_color[1] = 0.70f; acc.fill_color[2] = 0.95f;
-    graphics::drawRect(cx - w * 0.5f + 6.0f, cy, 4.0f, h - 10.0f, acc);
+    //If we have icon
+    float iconW = 0.0f;
+    if (!iconTex.empty())
+    {
+        graphics::Brush ib = br;
+        ib.texture = iconTex;
+
+        float iconSize = h * iconScale;
+        float iconX = (cx - w * 0.5f) + padX + iconSize * 0.5f;
+        graphics::drawRect(iconX, cy, iconSize, iconSize, ib);
+
+        iconW = iconSize + 10.0f; // spacing 
+    }
 
     // text
     graphics::Brush txt;
-    txt.fill_color[0] = 0.95f; txt.fill_color[1] = 0.95f; txt.fill_color[2] = 0.95f;
-    txt.fill_opacity = enabled ? 1.0f : 0.65f;
 
-    const float pad = 18.0f;
-    graphics::drawText(cx - w * 0.5f + pad, cy + 6.0f, 18.0f, text, txt);
+    txt.outline_opacity = 0.0f;
+    txt.fill_opacity = enabled ? 1.0f : 0.6f;
+    txt.fill_color[0] = 1.0f; txt.fill_color[1] = 1.0f; txt.fill_color[2] = 1.0f;
+
+    const float textX = (cx - w * 0.5f) + padX + iconW;
+    const float textY = cy + textSize * 0.35f;
+    graphics::drawText(textX, textY, textSize, text, txt);
 }
 
 
