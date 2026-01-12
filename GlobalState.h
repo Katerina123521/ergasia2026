@@ -53,6 +53,10 @@ private:
     void buildGridGraph();
     void clearWallsAndPathKeepEndpoints();
     void resetSearchVisuals();
+    void setupUI();
+    void setupLayout();
+
+
 
     bool runAStar(); // returns true if found path
     float heuristic(const Node* a, const Node* b) const;
