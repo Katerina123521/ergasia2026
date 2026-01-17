@@ -10,8 +10,6 @@ public:
     float cx = 0, cy = 0, w = 0, h = 0;
     bool visible = true;
     bool enabled = true;
-
-    // interaction state
     bool hovered = false;
     bool pressed = false;
 
@@ -43,9 +41,6 @@ public:
     std::string texDown = "assets/ui/btn_blue_down.png";
     std::string texDisabled = "assets/ui/btn_gray_idle.png";
 
-    std::string iconTex = "";   // e.g. "assets/ui/icon_play.png"
-    float iconScale = 0.55f;    // icon size relative to button height
-
     float textSize = 18.0f;
     float padX = 18.0f;
 
@@ -57,21 +52,6 @@ public:
     void draw() const override;
 };
 
-class ToggleButton : public Button
-{
-public:
-    bool* value = nullptr; // points to a bool in GlobalState
-    std::string labelOn = "ON";
-    std::string labelOff = "OFF";
-
-    ToggleButton(float x, float y, float width, float height, std::string t, bool* v)
-        : Button(x, y, width, height, std::move(t), nullptr), value(v)
-    {
-        onClick = [this]() { if (value) *value = !*value; };
-    }
-
-    void draw() const override;
-};
 
 class LegendPanel : public UIWidget
 {

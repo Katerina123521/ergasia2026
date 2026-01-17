@@ -60,18 +60,18 @@ bool GlobalState::appendPlayerPath(Node* n)
     // must be adjacent to the previous node
     if (!isAdjacent(last, n)) return false;
 
-    // avoid revisiting nodes (simple rule)
+    // avoid revisiting nodes
     if (std::find(m_playerPath.begin(), m_playerPath.end(), n) != m_playerPath.end())
         return false;
 
     m_playerPath.push_back(n);
 
-    // paint it (don?t overwrite goal)
+    // paint it
     if (n != m_goal && n != m_start)
         n->state = NodeVizState::PlayerPath;
 
     if (n == m_goal)
-        m_status = "Player path reached GOAL! (Scoring comes next.)";
+        m_status = "Player path reached GOAL!";
 
     return true;
 }
@@ -79,7 +79,8 @@ bool GlobalState::appendPlayerPath(Node* n)
 void GlobalState::clearInvalidMarks()
 {
     // Remove any PlayerInvalid marks, keep walls/start/goal
-    for (Node* n : m_nodes)
+    for (Node* n : m_grid.getAllNodes())
+
     {
         if (!n) continue;
         if (n == m_start) { n->state = NodeVizState::Start; continue; }
@@ -128,18 +129,17 @@ GlobalState::PlayerPathValidation GlobalState::validatePlayerPath()
         if (!cur)
         {
             m_invalidIndex = i;
-            return PlayerPathValidation::InvalidWall; // treat null as invalid
+            return PlayerPathValidation::InvalidWall;
         }
 
         // No walls allowed
         if (!cur->walkable)
         {
             m_invalidIndex = i;
-            // wall cells are black anyway; mark previous if you want
             return PlayerPathValidation::InvalidWall;
         }
 
-        // No duplicates (simple rule)
+        // No duplicates
         if (seen.find(cur) != seen.end())
         {
             m_invalidIndex = i;
@@ -161,7 +161,6 @@ GlobalState::PlayerPathValidation GlobalState::validatePlayerPath()
         }
     }
 
-    // End condition
     if (m_playerPath.back() == m_goal)
     {
         m_pathComplete = true;

@@ -13,7 +13,6 @@ bool GlobalState::loadLevelFromFile(const std::string& relPath)
         return false;
     }
 
-    // Reset gameplay state
     cancelAStar();
     clearPlayerPath();
     resetScore();

@@ -1,15 +1,15 @@
-#include "GlobalState.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include "GlobalState.h"
 #include "UIConstants.h"
 #include "graphics.h"
 #include "scancodes.h"
 
 
 GlobalState::GlobalState()
-    : m_status("LMB: wall | RMB: start | Shift+RMB: goal | SPACE: A* | C: clear")
+    : m_status("Welcome! Enter the draw mode and Run the A*!")
 {
 }
 
@@ -18,16 +18,10 @@ GlobalState::~GlobalState()
     graphics::stopMusic(300);
     resetScore();
 
-    // Delete UI widgets first (they are NOT in m_nodes)
+    // Delete UI widgets
     for (UIWidget* w : m_ui)
         delete w;
     m_ui.clear();
-
-    // Delete grid nodes
-    for (Node* n : m_nodes)
-        delete n;
-    m_nodes.clear();
-
     m_drawables.clear();
 }
 
@@ -51,11 +45,8 @@ void GlobalState::init()
     if (m_start) m_start->state = NodeVizState::Start;
     if (m_goal)  m_goal->state = NodeVizState::Goal;
 
-    // Font + music
-    graphics::setFont("assets/orbitron.ttf");
     if (m_musicOn)
         graphics::playMusic(m_musicFile, m_musicVolume, true, 800);
 
-    // UI
     setupUI();
 }

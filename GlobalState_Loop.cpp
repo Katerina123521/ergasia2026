@@ -1,14 +1,11 @@
 #include "GlobalState.h"
+#include "UIConstants.h"
 #include "graphics.h"
 #include "scancodes.h"
 
 void GlobalState::update(float dt)
 {
         (void)dt;
-
-        // Polymorphic update call (even if nodes do nothing)
-        for (VisualAsset* a : m_drawables)
-            a->update(dt);
 
         graphics::MouseState ms{};
         graphics::getMouseState(ms);
@@ -28,22 +25,46 @@ void GlobalState::update(float dt)
         m_prevSpace = spaceDown;
         m_prevR = rDown;
 
-
         const float mx = graphics::windowToCanvasX((float)ms.cur_pos_x);
         const float my = graphics::windowToCanvasY((float)ms.cur_pos_y);
 
-        bool uiCaptured = false;
-        for (UIWidget* w : m_ui)
+        // Handle help window close button click
+        if (m_showHelp && ms.button_left_pressed)
         {
-            if (w && w->visible)
-                // If a widget returns true, it means:
-                // "I used this mouse input, don't pass it to the grid."
-                uiCaptured = w->handleInput(ms, mx, my) || uiCaptured;
+            const float closeBtnSize = HELP_CLOSE_BTN_SIZE;
+            const float closeBtnX = HELP_PANEL_CX + HELP_PANEL_W * 0.5f - closeBtnSize * 0.5f - HELP_CLOSE_BTN_MARGIN;
+            const float closeBtnY = HELP_PANEL_CY - HELP_PANEL_H * 0.5f + closeBtnSize * 0.5f + HELP_CLOSE_BTN_MARGIN;
+
+            const float half = closeBtnSize * 0.5f;
+            const float minX = closeBtnX - half;
+            const float maxX = closeBtnX + half;
+            const float minY = closeBtnY - half;
+            const float maxY = closeBtnY + half;
+            
+            // Check if click is within close button bounds
+            if (mx >= minX && mx <= maxX && my >= minY && my <= maxY)
+            {
+                m_showHelp = false;
+                return;
+            }
         }
 
+        bool uiCaptured = false;
+        // Don't process UI if help is showing
+        if (!m_showHelp)
+        {
+            for (UIWidget* w : m_ui)
+            {
+                if (w && w->visible)
+                    uiCaptured = w->handleInput(ms, mx, my) || uiCaptured;
+            }
+        }
 
-        const bool shift = graphics::getKeyState(graphics::SCANCODE_LSHIFT) ||
-            graphics::getKeyState(graphics::SCANCODE_RSHIFT);
+        if (m_showHelp)
+        {
+            return;
+        }
+        
         if (!uiCaptured)
         {
             // If A* is running and player starts editing/drawing, stop A*
@@ -64,7 +85,6 @@ void GlobalState::update(float dt)
                 if (ms.button_left_pressed)
                 {
                     stopAStarIfActive();
-                    resetAttemptTimer();
                     Node* n = nodeFromMouse(mx, my);
                     if (n && n != m_start && n != m_goal)
                     {
@@ -81,10 +101,7 @@ void GlobalState::update(float dt)
                     stopAStarIfActive();
                     beginPlayerDrawing();
                     startAttemptTimer();
-
-
                     // If user clicked somewhere other than start, we still begin at start.
-                    // Next frames while dragging will add cells.
                 }
 
                 if (ms.button_left_down && m_isDrawing)
@@ -100,7 +117,6 @@ void GlobalState::update(float dt)
                             beginPlayerDrawing();
                         }
 
-                        // try to append
                         if (appendPlayerPath(n))
                         {
                             m_lastDrawn = n;
@@ -128,7 +144,7 @@ void GlobalState::update(float dt)
                         break;
 
                     case PlayerPathValidation::ValidToGoal:
-                        m_status = "Valid path to GOAL! (Scoring comes next.)";
+                        m_status = "Valid path to GOAL!";
                         break;
 
                     case PlayerPathValidation::ValidButNotAtGoal:
@@ -152,7 +168,7 @@ void GlobalState::update(float dt)
                         break;
                     }
 
-                    if (m_pathValidation == PlayerPathValidation::ValidToGoal && m_autoScoreOnGoal)
+                    if (m_pathValidation == PlayerPathValidation::ValidToGoal)
                     {
                         computeScore();
                     }
@@ -160,7 +176,6 @@ void GlobalState::update(float dt)
 
             }
 
-            // --- RMB behavior stays the same (start/goal) ---
             if (ms.button_right_pressed && !ms.button_left_down && !m_isDrawing)
             {
                 stopAStarIfActive();
@@ -171,7 +186,6 @@ void GlobalState::update(float dt)
                 Node* n = nodeFromMouse(mx, my);
                 if (n && n->walkable)
                 {
-                    // if changing endpoints, player path no longer valid
                     clearPlayerPath();
 
                     if (shift)
@@ -217,10 +231,8 @@ void GlobalState::update(float dt)
         {
             m_drawMode = !m_drawMode;
 
-            // If switching on, clear any old player path
             if (m_drawMode)
             {
-                // safest: stop A* visuals so colors don't mix
                 if (m_aState == AStarRunState::Running || m_aState == AStarRunState::Paused)
                     cancelAStar();
 
@@ -254,7 +266,4 @@ void GlobalState::update(float dt)
                 stepAStar(); // one expansion per step
             }
         }
-
-
-    
 }

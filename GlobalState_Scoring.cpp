@@ -79,7 +79,6 @@ bool GlobalState::computeScore()
 {
     resetScore();
 
-    // only score if path is complete + valid
     if (m_pathValidation != PlayerPathValidation::ValidToGoal)
     {
         m_status = "Cannot score: draw a valid path that reaches the GOAL.";
@@ -92,7 +91,7 @@ bool GlobalState::computeScore()
         return false;
     }
 
-    // Steps are edges between nodes:
+    // Steps are edges between nodes
     m_playerSteps = (int)m_playerPath.size() - 1;
     if (m_playerSteps < 0) m_playerSteps = 0;
 

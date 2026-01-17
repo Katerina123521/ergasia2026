@@ -140,8 +140,20 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="GlobalState.cpp" />
+    <ClCompile Include="GlobalState_AStar.cpp" />
+    <ClCompile Include="GlobalState_Draw.cpp" />
+    <ClCompile Include="GlobalState_Grid.cpp" />
+    <ClCompile Include="GlobalState_Layout.cpp" />
+    <ClCompile Include="GlobalState_Levels.cpp" />
+    <ClCompile Include="GlobalState_Loop.cpp" />
+    <ClCompile Include="GlobalState_PlayerPath.cpp" />
+    <ClCompile Include="GlobalState_Scoring.cpp" />
+    <ClCompile Include="GlobalState_Timer.cpp" />
+    <ClCompile Include="GlobalState_UI.cpp" />
+    <ClCompile Include="Grid.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Node.cpp" />
+    <ClCompile Include="Pathfinder.cpp" />
     <ClCompile Include="UIWidget.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -149,6 +161,7 @@
     <ClInclude Include="Grid.h" />
     <ClInclude Include="Node.h" />
     <ClInclude Include="Pathfinder.h" />
+    <ClInclude Include="UIConstants.h" />
     <ClInclude Include="UIWidget.h" />
     <ClInclude Include="VisualAsset.h" />
   </ItemGroup>

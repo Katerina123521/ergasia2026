@@ -1,10 +1,10 @@
 #pragma once
 
-class VisualAsset
+class VisualAsset 
+	// Abstract base class for visual assets (Nodes, UI widgets, Button etc.)
 {
 public:
     virtual ~VisualAsset() = default;
-    virtual void update(float dt) { (void)dt; }
     virtual void draw() const = 0;
 };
 

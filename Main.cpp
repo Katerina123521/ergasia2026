@@ -23,16 +23,13 @@ int main()
 
     graphics::setCanvasSize((float)W, (float)H);
     graphics::setCanvasScaleMode(graphics::CANVAS_SCALE_FIT);
-	//graphics::setFullScreen(true);
 
-    // Single GlobalState instance (stored as user data) :contentReference[oaicite:6]{index=6}
+    // Single GlobalState instance
     auto* gs = new GlobalState();
     gs->init();
     graphics::setUserData(gs);
-
     graphics::setDrawFunction(draw);
     graphics::setUpdateFunction(update);
-
     graphics::startMessageLoop();
 
     // Cleanup

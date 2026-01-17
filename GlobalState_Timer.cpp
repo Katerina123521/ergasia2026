@@ -37,7 +37,7 @@ void GlobalState::updateAttemptTimer(float dt)
 {
     if (!m_timerEnabled) return;
     if (m_timerRunning)
-        m_attemptTimeMs += dt; // dt is ms in your project
+        m_attemptTimeMs += dt;
 }
 
 std::string GlobalState::formatTime(float ms) const

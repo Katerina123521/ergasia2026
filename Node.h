@@ -42,7 +42,7 @@ public:
     // Hit test (for mouse selection) in canvas units
     bool hitTest(float x, float y) const;
 
-    // Layout shared by all nodes (set by GlobalState)
+    // Layout shared by all nodes
     static void setLayout(float originX, float originY, float cellSize);
 
 private:

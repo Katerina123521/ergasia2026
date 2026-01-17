@@ -38,7 +38,7 @@ bool Node::hitTest(float x, float y) const
     const float w = s_cell;
     const float h = s_cell;
 
-    // Point-in-rect test (matches the assignment collision section) :contentReference[oaicite:3]{index=3}
+    // Point-in-rect test
     return (cx - w * 0.5f <= x && x <= cx + w * 0.5f) &&
         (cy - h * 0.5f <= y && y <= cy + h * 0.5f);
 }
@@ -69,9 +69,6 @@ static void setColorForState(graphics::Brush& br, NodeVizState st)
         br.fill_color[0] = 1.00f; br.fill_color[1] = 0.85f; br.fill_color[2] = 0.15f; break;
     case NodeVizState::PlayerPath:
         br.fill_color[0] = 0.85f; br.fill_color[1] = 0.25f; br.fill_color[2] = 0.85f; break;
-    case NodeVizState::PlayerInvalid:
-        br.fill_color[0] = 1.00f; br.fill_color[1] = 0.55f; br.fill_color[2] = 0.15f; break;
-
     }
 }
 

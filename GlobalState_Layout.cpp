@@ -4,7 +4,7 @@
 
 void GlobalState::setupLayout()
 {
-    const float availW = WIN_W - UI_LEFT_W - UI_RIGHT_W - 2.0f * UI_MARGIN;
+    const float availW = WIN_W - UI_LEFT_W - 2.0f * UI_MARGIN;
     const float availH = WIN_H - UI_TOP_H - 2.0f * UI_MARGIN;
 
     m_cell = std::min(availW / m_cols, availH / m_rows);
